@@ -37,6 +37,27 @@ npm run build
 npm start
 ```
 
+## Render to video
+
+The reveal can be captured as a WebM with a one-shot headless Chromium recording.
+
+```bash
+npm run record:setup    # one-time: download chromium (~150 MB)
+npm run record          # builds, captures 24s, writes ./out/maison-nox-reveal.webm
+```
+
+Defaults: 1920×1080, 24 seconds, port 3041. Override via env:
+
+```bash
+WIDTH=2560 HEIGHT=1440 DURATION=24 npm run record
+```
+
+To convert the WebM to MP4 (requires `ffmpeg`):
+
+```bash
+ffmpeg -i out/maison-nox-reveal.webm -c:v libx264 -preset slow -crf 18 -pix_fmt yuv420p out/maison-nox-reveal.mp4
+```
+
 ## Notes on craft
 
 - **Palette:** pure black void, deep luxury gold (`#D4AF37`), warm amber halos,
