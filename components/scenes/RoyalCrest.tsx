@@ -10,7 +10,7 @@ export default function RoyalCrest({ active }: { active: boolean }) {
   return (
     <motion.svg
       viewBox="0 0 240 200"
-      className="w-[14vmin] max-w-[140px] h-auto"
+      className="w-[16vmin] max-w-[160px] h-auto drop-shadow-[0_0_20px_rgba(212,175,55,0.25)]"
       initial={{ opacity: 0, y: 12, scale: 0.96 }}
       animate={
         active

@@ -27,10 +27,11 @@ body {
 }
 
 body {
-  background:
-    radial-gradient(circle at 50% 55%, rgba(212, 175, 55, 0.06) 0%, transparent 55%),
-    radial-gradient(circle at 50% 100%, rgba(184, 134, 11, 0.05) 0%, transparent 60%),
-    #000;
+  background: #000;
+}
+
+canvas {
+  display: block;
 }
 
 /* Gold foil text — used on the headline/legacy text */

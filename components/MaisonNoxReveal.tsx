@@ -1,447 +1,304 @@
 "use client";
 
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { useCallback, useEffect, useState } from "react";
-import Particles from "./scenes/Particles";
-import Monogram from "./scenes/Monogram";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import ParticleStage, { ParticleStageHandle } from "./canvas/ParticleStage";
 import PerfumeBottle from "./scenes/PerfumeBottle";
 import RoyalCrest from "./scenes/RoyalCrest";
 
 /*
- * Cinematic timeline (seconds):
- *   1. DARKNESS              0 → 2
- *   2. ENERGY AWAKENING      2 → 5
- *   3. MONOGRAM FORGED       5 → 8
- *   4. BRAND REVEAL          8 → 11
- *   5. BOTTLE EMERGENCE     11 → 15
- *   6. LUXURY STATEMENT     15 → 18
- *   7. LEGACY REVEAL        18 → 22  (then holds)
+ * NEW TIMELINE (22.5s)
  *
- * Each scene drives in/out via a master `t` (seconds since start).
- * Particles + camera drift run continuously underneath.
+ *   ▢ 0.0 – 3.0  · VOID         · gold dust drifts in pure black
+ *   ▢ 3.0 – 7.0  · MONOGRAM     · particles converge into the MN sigil
+ *   ▢ 7.0 – 10.0 · WORDMARK     · sigil flows into "MAISON NOX"
+ *   ▢ 10.0– 14.0 · FLACON       · particles disperse, the bottle rises
+ *   ▢ 14.0– 17.0 · STATEMENT    · bottle dissolves into the statement text
+ *   ▢ 17.0– 22.5 · LEGACY       · text settles into the legacy lockup + crest
+ *
+ * Transitions are not crossfades — particles physically morph from one
+ * shape into the next via spring physics on the canvas layer.
  */
 
 const LUX_EASE: [number, number, number, number] = [0.22, 0.8, 0.2, 1];
+const TOTAL = 22.5;
 
-type SceneKey = 1 | 2 | 3 | 4 | 5 | 6 | 7;
+type SceneKey = "void" | "monogram" | "wordmark" | "flacon" | "statement" | "legacy";
+
+const SCENES: { key: SceneKey; start: number; end: number; label: string }[] = [
+  { key: "void", start: 0, end: 3, label: "I" },
+  { key: "monogram", start: 3, end: 7, label: "II" },
+  { key: "wordmark", start: 7, end: 10, label: "III" },
+  { key: "flacon", start: 10, end: 14, label: "IV" },
+  { key: "statement", start: 14, end: 17, label: "V" },
+  { key: "legacy", start: 17, end: TOTAL, label: "VI" },
+];
 
 function sceneAt(t: number): SceneKey {
-  if (t < 2) return 1;
-  if (t < 5) return 2;
-  if (t < 8) return 3;
-  if (t < 11) return 4;
-  if (t < 15) return 5;
-  if (t < 18) return 6;
-  return 7;
+  for (const s of SCENES) if (t >= s.start && t < s.end) return s.key;
+  return "legacy";
 }
 
 export default function MaisonNoxReveal() {
   const reduce = useReducedMotion();
+  const stageRef = useRef<ParticleStageHandle>(null);
   const [t, setT] = useState(0);
   const [runId, setRunId] = useState(0);
+  const [audioOn, setAudioOn] = useState(false);
+  const audioRef = useRef<{ stop: () => void } | null>(null);
+  const scene = sceneAt(t);
 
+  /* ── master clock ─────────────────────────────────────────────────── */
   useEffect(() => {
     if (reduce) {
-      // Skip straight to the held final frame for accessibility.
-      setT(22);
+      setT(TOTAL);
       return;
     }
     const start = performance.now();
-    let frame = 0;
+    let raf = 0;
     const tick = (now: number) => {
       const elapsed = (now - start) / 1000;
       setT(elapsed);
-      if (elapsed < 24) {
-        frame = requestAnimationFrame(tick);
-      }
+      if (elapsed < TOTAL + 4) raf = requestAnimationFrame(tick);
     };
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
   }, [reduce, runId]);
 
+  /* ── particle stage morph orchestration ───────────────────────────── */
+  useEffect(() => {
+    const s = stageRef.current;
+    if (!s) return;
+    switch (scene) {
+      case "void":
+        s.morph({ kind: "drift" });
+        break;
+      case "monogram":
+        s.morph({ kind: "monogram" });
+        s.pulse();
+        break;
+      case "wordmark":
+        s.morph({
+          kind: "text",
+          lines: [
+            { text: "MAISON NOX", size: vmin(11, 56, 130), weight: "500", letterSpacing: 14 },
+          ],
+        });
+        break;
+      case "flacon":
+        // Particles fly outward so the flacon has the stage to itself
+        s.morph({ kind: "disperse" });
+        break;
+      case "statement":
+        s.morph({
+          kind: "text",
+          lines: [
+            { text: "NOT A PERFUME.", size: vmin(5.6, 32, 72), weight: "400", letterSpacing: 6 },
+            { text: "A PRESENCE.", size: vmin(5.6, 32, 72), weight: "400", letterSpacing: 6 },
+          ],
+          lineGap: 12,
+        });
+        break;
+      case "legacy":
+        s.morph({
+          kind: "text",
+          lines: [
+            { text: "THE MAISON WORLD", size: vmin(6.4, 38, 92), weight: "500", letterSpacing: 12 },
+            { text: "HOUSE OF DISTINCTION", size: vmin(1.4, 11, 18), weight: "300", letterSpacing: 8 },
+          ],
+          lineGap: 22,
+          yOffset: vmin(6, 30, 70),
+        });
+        break;
+    }
+  }, [scene]);
+
+  /* ── ambient audio toggle (Web Audio API, optional) ──────────────── */
+  const toggleAudio = useCallback(async () => {
+    if (audioOn) {
+      audioRef.current?.stop();
+      audioRef.current = null;
+      setAudioOn(false);
+      return;
+    }
+    try {
+      audioRef.current = await startDrone();
+      setAudioOn(true);
+    } catch {
+      // browser blocked autoplay or no audio context
+    }
+  }, [audioOn]);
+
+  useEffect(() => () => audioRef.current?.stop(), []);
+
   const replay = useCallback(() => setRunId((n) => n + 1), []);
-  const scene = sceneAt(t);
 
   return (
-    <section className="relative h-[100svh] w-full bg-nox-black overflow-hidden grain vignette select-none">
-      {/* Cinematic camera drift — applies to every layer beneath. */}
+    <section
+      className="relative h-[100svh] w-full overflow-hidden bg-nox-black select-none grain"
+      key={`stage-${runId}`}
+    >
+      {/* Deep volumetric backdrop — ambient amber wash under everything */}
+      <div
+        aria-hidden
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background:
+            "radial-gradient(ellipse 80% 60% at 50% 105%, rgba(184,134,11,0.16) 0%, rgba(184,134,11,0.04) 40%, rgba(0,0,0,0) 70%), radial-gradient(ellipse 60% 50% at 50% 40%, rgba(212,175,55,0.08) 0%, rgba(0,0,0,0) 60%)",
+        }}
+      />
+
+      {/* Cinematic camera drift wraps every layer for parallax */}
       <motion.div
         key={`cam-${runId}`}
         className="absolute inset-0"
-        initial={{ scale: 1.04, x: -8, y: 6 }}
-        animate={{ scale: [1.04, 1.0, 1.02, 1.0], x: [-8, 4, -2, 0], y: [6, -2, 4, 0] }}
-        transition={{ duration: 22, ease: "easeInOut" }}
+        initial={{ scale: 1.05, x: -10, y: 8 }}
+        animate={{
+          scale: [1.05, 1.0, 1.02, 1.0, 1.03],
+          x: [-10, 4, -3, 6, 0],
+          y: [8, -2, 5, -3, 0],
+        }}
+        transition={{ duration: TOTAL, ease: "easeInOut" }}
       >
-        {/* Ambient bottom amber glow */}
-        <motion.div
-          className="absolute inset-x-0 bottom-0 h-[55%] pointer-events-none"
-          style={{
-            background:
-              "radial-gradient(ellipse at 50% 100%, rgba(184,134,11,0.18) 0%, rgba(184,134,11,0.06) 35%, rgba(0,0,0,0) 70%)",
-          }}
-          initial={{ opacity: 0.3 }}
-          animate={{ opacity: [0.3, 0.55, 0.7, 0.55, 0.7] }}
-          transition={{ duration: 22, ease: "easeInOut", times: [0, 0.18, 0.5, 0.75, 1] }}
-        />
+        {/* Particle field — the living medium that morphs through every scene */}
+        <ParticleStage ref={stageRef} />
 
-        {/* Center awakening glow — intensifies during scenes 2 & 3 */}
+        {/* Center awakening glow — intensifies during transitions */}
         <motion.div
-          key={`center-${runId}`}
+          key={`glow-${runId}`}
           className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none"
           style={{
-            width: "70vmin",
-            height: "70vmin",
+            width: "78vmin",
+            height: "78vmin",
             background:
-              "radial-gradient(circle, rgba(212,175,55,0.32) 0%, rgba(212,175,55,0.10) 30%, rgba(0,0,0,0) 65%)",
-            filter: "blur(20px)",
-          }}
-          initial={{ opacity: 0, scale: 0.6 }}
-          animate={{
-            opacity: [0, 0, 0.55, 0.7, 0.35, 0.25, 0.2, 0.3],
-            scale: [0.6, 0.7, 1.05, 1.15, 1.0, 1.0, 1.0, 1.05],
-          }}
-          transition={{
-            duration: 22,
-            ease: "easeInOut",
-            // 0s, 2s, 5s, 8s, 11s, 15s, 18s, 22s
-            times: [0, 0.09, 0.227, 0.363, 0.5, 0.682, 0.818, 1],
-          }}
-        />
-
-        {/* Two particle layers for parallax depth */}
-        <Particles count={48} intensity={0.55} seed={11} />
-        <Particles count={28} intensity={0.85} seed={42} />
-
-        {/* Slow horizontal light bar — atmospheric volumetric pass */}
-        <motion.div
-          key={`bar-${runId}`}
-          className="absolute -inset-x-20 top-1/2 -translate-y-1/2 h-[30vmin] pointer-events-none"
-          style={{
-            background:
-              "linear-gradient(90deg, rgba(212,175,55,0) 0%, rgba(212,175,55,0.10) 50%, rgba(212,175,55,0) 100%)",
-            filter: "blur(40px)",
+              "radial-gradient(circle, rgba(244,225,164,0.30) 0%, rgba(212,175,55,0.10) 30%, rgba(0,0,0,0) 65%)",
+            filter: "blur(28px)",
             mixBlendMode: "screen",
           }}
-          initial={{ x: "-40%", opacity: 0 }}
-          animate={{ x: ["-40%", "-10%", "10%", "30%"], opacity: [0, 0.4, 0.6, 0.3] }}
-          transition={{ duration: 22, ease: "easeInOut" }}
+          initial={{ opacity: 0, scale: 0.5 }}
+          animate={{
+            opacity: [0, 0.0, 0.5, 0.7, 0.45, 0.55, 0.35, 0.4],
+            scale: [0.5, 0.6, 1.0, 1.1, 0.95, 1.0, 0.95, 1.05],
+          }}
+          transition={{
+            duration: TOTAL,
+            ease: "easeInOut",
+            // 0, 3, 7, 10, 14, 17, 20, 22.5
+            times: [0, 0.133, 0.311, 0.444, 0.622, 0.755, 0.889, 1],
+          }}
         />
 
-        {/* SCENE STAGE — only one scene visible at a time, beautifully cross-faded */}
-        <div className="absolute inset-0 flex items-center justify-center">
-          <AnimatePresence mode="wait">
-            {scene === 1 && (
-              <motion.div
-                key="s1"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 1.2, ease: "easeInOut" }}
-                className="absolute inset-0"
-              />
-            )}
+        {/* Anamorphic horizontal light bar — slow volumetric pass */}
+        <motion.div
+          key={`bar-${runId}`}
+          aria-hidden
+          className="absolute -inset-x-20 top-1/2 -translate-y-1/2 h-[26vmin] pointer-events-none"
+          style={{
+            background:
+              "linear-gradient(90deg, rgba(212,175,55,0) 0%, rgba(244,225,164,0.16) 50%, rgba(212,175,55,0) 100%)",
+            filter: "blur(36px)",
+            mixBlendMode: "screen",
+          }}
+          initial={{ x: "-45%", opacity: 0 }}
+          animate={{
+            x: ["-45%", "-10%", "10%", "30%"],
+            opacity: [0, 0.5, 0.55, 0.25],
+          }}
+          transition={{ duration: TOTAL, ease: "easeInOut" }}
+        />
 
-            {scene === 2 && (
-              <motion.div
-                key="s2"
-                initial={{ opacity: 0, scale: 0.96 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 1.02 }}
-                transition={{ duration: 1.4, ease: LUX_EASE }}
-                className="absolute inset-0 flex items-center justify-center"
-              >
-                <EnergyAwakening />
-              </motion.div>
-            )}
+        {/* Scene 4 — the flacon. Lives on its own DOM layer, doesn't need
+            cross-fades because the particle stage clears for it. */}
+        <AnimatePresence>
+          {scene === "flacon" && (
+            <motion.div
+              key="bottle"
+              className="absolute inset-0 flex items-end justify-center pb-[14vh]"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0, scale: 1.04, filter: "blur(8px)" }}
+              transition={{ duration: 1.4, ease: LUX_EASE }}
+            >
+              <PerfumeBottle active />
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-            {scene === 3 && (
-              <motion.div
-                key="s3"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 1.4, ease: LUX_EASE }}
-                className="absolute inset-0 flex items-center justify-center"
-              >
-                <Monogram active />
-              </motion.div>
-            )}
+        {/* Scene 6 — royal crest floats above the legacy text on the canvas */}
+        <AnimatePresence>
+          {scene === "legacy" && (
+            <motion.div
+              key="crest"
+              className="absolute left-1/2 -translate-x-1/2 pointer-events-none"
+              style={{ top: "22%" }}
+              initial={{ opacity: 0, y: 14, scale: 0.92 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 1.8, delay: 0.6, ease: LUX_EASE }}
+            >
+              <RoyalCrest active />
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-            {scene === 4 && (
-              <motion.div
-                key="s4"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 1.4, ease: LUX_EASE }}
-                className="absolute inset-0 flex items-center justify-center"
-              >
-                <BrandReveal />
-              </motion.div>
-            )}
+        {/* Aperture wipe between act-bookends (scene transitions) */}
+        <ApertureWipe trigger={scene} />
 
-            {scene === 5 && (
-              <motion.div
-                key="s5"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 1.6, ease: LUX_EASE }}
-                className="absolute inset-0 flex items-end justify-center pb-[12vh]"
-              >
-                <PerfumeBottle active />
-              </motion.div>
-            )}
-
-            {scene === 6 && (
-              <motion.div
-                key="s6"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 1.4, ease: LUX_EASE }}
-                className="absolute inset-0 flex items-center justify-center"
-              >
-                <LuxuryStatement />
-              </motion.div>
-            )}
-
-            {scene === 7 && (
-              <motion.div
-                key="s7"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 1.6, ease: LUX_EASE }}
-                className="absolute inset-0 flex items-center justify-center"
-              >
-                <LegacyReveal />
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+        {/* Anamorphic lens flare — fires near peak moments */}
+        <LensFlare t={t} />
       </motion.div>
 
-      {/* Letterbox bars — reinforce the cinematic aspect */}
+      {/* Letterbox bars — gently breathe through the whole reel */}
       <motion.div
-        className="pointer-events-none absolute inset-x-0 top-0 z-20 bg-black"
-        initial={{ height: "12vh" }}
-        animate={{ height: ["12vh", "8vh", "6vh", "8vh"] }}
-        transition={{ duration: 22, ease: "easeInOut" }}
+        className="pointer-events-none absolute inset-x-0 top-0 z-30 bg-black"
+        initial={{ height: "14vh" }}
+        animate={{ height: ["14vh", "8vh", "6vh", "8vh", "10vh"] }}
+        transition={{ duration: TOTAL, ease: "easeInOut" }}
       />
       <motion.div
-        className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-black"
-        initial={{ height: "12vh" }}
-        animate={{ height: ["12vh", "8vh", "6vh", "8vh"] }}
-        transition={{ duration: 22, ease: "easeInOut" }}
+        className="pointer-events-none absolute inset-x-0 bottom-0 z-30 bg-black"
+        initial={{ height: "14vh" }}
+        animate={{ height: ["14vh", "8vh", "6vh", "8vh", "10vh"] }}
+        transition={{ duration: TOTAL, ease: "easeInOut" }}
       />
 
-      {/* Quiet UI — chapter marker + replay. No buttons mid-scene; restraint. */}
-      <ChapterMarker scene={scene} />
-      <ReplayButton onClick={replay} visible={t >= 21} />
+      {/* Outer vignette */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 z-20"
+        style={{
+          background:
+            "radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.78) 95%)",
+        }}
+      />
+
+      {/* Quiet UI */}
+      <ChapterRail scene={scene} />
+      <AudioToggle on={audioOn} onClick={toggleAudio} />
+      <ReplayButton onClick={replay} visible={t >= TOTAL - 1} />
     </section>
   );
 }
 
-/* ────────────────────────────────────────────────────────────────────────── */
-/*  Scene 2 — Energy Awakening                                               */
-/* ────────────────────────────────────────────────────────────────────────── */
-function EnergyAwakening() {
+/* ────────────────────────────────────────────────────────────────────── */
+
+function ChapterRail({ scene }: { scene: SceneKey }) {
+  const idx = SCENES.findIndex((s) => s.key === scene);
   return (
-    <div className="relative">
-      {/* Slowly forming gold orb */}
-      <motion.div
-        className="rounded-full"
-        style={{
-          width: "26vmin",
-          height: "26vmin",
-          background:
-            "radial-gradient(circle, rgba(244,225,164,0.85) 0%, rgba(212,175,55,0.45) 35%, rgba(184,134,11,0.0) 70%)",
-          filter: "blur(8px)",
-        }}
-        initial={{ opacity: 0, scale: 0.5 }}
-        animate={{ opacity: [0, 0.7, 0.9, 0.6], scale: [0.5, 1.0, 1.15, 1.05] }}
-        transition={{ duration: 3, ease: "easeInOut" }}
-      />
-
-      {/* Swirling trail rings */}
-      {[0, 1, 2].map((i) => (
-        <motion.div
-          key={i}
-          className="absolute left-1/2 top-1/2 rounded-full border"
-          style={{
-            width: `${36 + i * 14}vmin`,
-            height: `${36 + i * 14}vmin`,
-            borderColor: "rgba(212,175,55,0.18)",
-            borderStyle: "solid",
-            transform: "translate(-50%, -50%)",
-          }}
-          initial={{ opacity: 0, rotate: 0, scale: 0.7 }}
-          animate={{ opacity: [0, 0.5, 0.2], rotate: 60 + i * 30, scale: [0.7, 1, 1.05] }}
-          transition={{ duration: 3, ease: "easeOut", delay: i * 0.15 }}
-        />
-      ))}
-    </div>
-  );
-}
-
-/* ────────────────────────────────────────────────────────────────────────── */
-/*  Scene 4 — Brand Reveal                                                   */
-/* ────────────────────────────────────────────────────────────────────────── */
-function BrandReveal() {
-  const word1 = "MAISON".split("");
-  const word2 = "NOX".split("");
-  return (
-    <div className="flex flex-col items-center gap-3">
-      <motion.div
-        className="h-px w-24 bg-gradient-to-r from-transparent via-[#d4af37] to-transparent"
-        initial={{ scaleX: 0, opacity: 0 }}
-        animate={{ scaleX: 1, opacity: 1 }}
-        transition={{ duration: 1.2, ease: LUX_EASE }}
-      />
-
-      <h1 className="font-serif text-[clamp(2.6rem,9vmin,7.2rem)] leading-none flex gap-[0.18em] tracking-royal">
-        {word1.map((ch, i) => (
+    <div className="pointer-events-none absolute bottom-[2.6vh] left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 opacity-70">
+      {SCENES.map((s, i) => (
+        <div key={s.key} className="flex items-center gap-2">
           <motion.span
-            key={`m-${i}`}
-            className="gold-foil inline-block"
-            initial={{ opacity: 0, y: 18, filter: "blur(8px)" }}
-            animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-            transition={{ duration: 1.4, delay: 0.3 + i * 0.08, ease: LUX_EASE }}
-          >
-            {ch}
-          </motion.span>
-        ))}
-        <span className="w-[0.4em]" />
-        {word2.map((ch, i) => (
-          <motion.span
-            key={`n-${i}`}
-            className="gold-foil inline-block"
-            initial={{ opacity: 0, y: 18, filter: "blur(8px)" }}
-            animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-            transition={{ duration: 1.4, delay: 0.85 + i * 0.08, ease: LUX_EASE }}
-          >
-            {ch}
-          </motion.span>
-        ))}
-      </h1>
-
-      <motion.div
-        className="h-px w-24 bg-gradient-to-r from-transparent via-[#d4af37] to-transparent"
-        initial={{ scaleX: 0, opacity: 0 }}
-        animate={{ scaleX: 1, opacity: 1 }}
-        transition={{ duration: 1.2, delay: 0.4, ease: LUX_EASE }}
-      />
-
-      <motion.p
-        className="font-sans text-[10px] tracking-regal text-[#b89a52] mt-3"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 1.4, delay: 1.6, ease: "easeOut" }}
-      >
-        PARFUM · PARIS
-      </motion.p>
-    </div>
-  );
-}
-
-/* ────────────────────────────────────────────────────────────────────────── */
-/*  Scene 6 — Luxury Statement                                               */
-/* ────────────────────────────────────────────────────────────────────────── */
-function LuxuryStatement() {
-  const lines = ["NOT A PERFUME.", "A PRESENCE."];
-  return (
-    <div className="flex flex-col items-center gap-2 px-6 text-center">
-      {lines.map((line, li) => (
-        <motion.div
-          key={line}
-          className="overflow-hidden"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 1.2, delay: 0.2 + li * 0.5, ease: LUX_EASE }}
-        >
-          <motion.p
-            className="font-serif gold-foil-soft text-[clamp(1.5rem,5.4vmin,3.8rem)] tracking-[0.32em] leading-tight"
-            initial={{ y: 24, filter: "blur(6px)" }}
-            animate={{ y: 0, filter: "blur(0px)" }}
-            transition={{ duration: 1.6, delay: 0.2 + li * 0.5, ease: LUX_EASE }}
-          >
-            {line}
-          </motion.p>
-        </motion.div>
-      ))}
-    </div>
-  );
-}
-
-/* ────────────────────────────────────────────────────────────────────────── */
-/*  Scene 7 — Legacy Reveal                                                  */
-/* ────────────────────────────────────────────────────────────────────────── */
-function LegacyReveal() {
-  return (
-    <div className="relative flex flex-col items-center gap-5 text-center">
-      <RoyalCrest active />
-
-      <motion.h2
-        className="font-serif gold-foil text-[clamp(1.8rem,6vmin,4.2rem)] tracking-royal"
-        initial={{ opacity: 0, y: 18, filter: "blur(8px)" }}
-        animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-        transition={{ duration: 1.6, delay: 0.6, ease: LUX_EASE }}
-      >
-        THE MAISON WORLD
-      </motion.h2>
-
-      <motion.div
-        className="h-px w-40 bg-gradient-to-r from-transparent via-[#d4af37] to-transparent"
-        initial={{ scaleX: 0, opacity: 0 }}
-        animate={{ scaleX: 1, opacity: 1 }}
-        transition={{ duration: 1.4, delay: 1.0, ease: LUX_EASE }}
-      />
-
-      <motion.p
-        className="font-sans text-[clamp(0.7rem,1.4vmin,0.95rem)] tracking-regal text-[#b89a52]"
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 1.4, delay: 1.4, ease: LUX_EASE }}
-      >
-        HOUSE OF DISTINCTION
-      </motion.p>
-
-      {/* Final cinematic gold sweep across the legacy lockup */}
-      <motion.div
-        className="absolute inset-x-[-10%] top-[35%] h-[2px]"
-        style={{
-          background:
-            "linear-gradient(90deg, rgba(212,175,55,0) 0%, rgba(244,225,164,0.95) 50%, rgba(212,175,55,0) 100%)",
-          filter: "blur(2px)",
-          mixBlendMode: "screen",
-        }}
-        initial={{ x: "-60%", opacity: 0 }}
-        animate={{ x: ["-60%", "60%"], opacity: [0, 0.9, 0] }}
-        transition={{ duration: 2.4, delay: 1.8, ease: [0.5, 0, 0.2, 1] }}
-      />
-    </div>
-  );
-}
-
-/* ────────────────────────────────────────────────────────────────────────── */
-/*  Quiet UI                                                                  */
-/* ────────────────────────────────────────────────────────────────────────── */
-function ChapterMarker({ scene }: { scene: SceneKey }) {
-  const total = 7;
-  return (
-    <div className="pointer-events-none absolute bottom-[2.2vh] left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 opacity-60">
-      {Array.from({ length: total }, (_, i) => (
-        <motion.span
-          key={i}
-          className="block h-px"
-          style={{
-            width: i + 1 === scene ? 28 : 14,
-            background: i + 1 <= scene ? "#d4af37" : "rgba(212,175,55,0.22)",
-          }}
-          animate={{ width: i + 1 === scene ? 28 : 14 }}
-          transition={{ duration: 0.8, ease: LUX_EASE }}
-        />
+            className="block h-px"
+            style={{
+              width: i === idx ? 32 : 14,
+              background: i <= idx ? "#d4af37" : "rgba(212,175,55,0.22)",
+            }}
+            animate={{ width: i === idx ? 32 : 14 }}
+            transition={{ duration: 0.7, ease: LUX_EASE }}
+          />
+          {i < SCENES.length - 1 && <span className="block w-0" />}
+        </div>
       ))}
     </div>
   );
@@ -454,16 +311,164 @@ function ReplayButton({ onClick, visible }: { onClick: () => void; visible: bool
         <motion.button
           type="button"
           onClick={onClick}
-          className="absolute right-6 bottom-[2vh] z-30 font-sans text-[10px] tracking-regal text-[#b89a52] hover:text-[#f4e1a4] transition-colors"
+          className="absolute right-6 bottom-[2.4vh] z-40 font-sans text-[10px] tracking-regal text-[#b89a52] hover:text-[#f4e1a4] transition-colors"
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 6 }}
-          transition={{ duration: 0.8, ease: LUX_EASE }}
+          transition={{ duration: 0.9, ease: LUX_EASE }}
           aria-label="Replay reveal"
         >
-          REPLAY
+          ↻ REPLAY
         </motion.button>
       )}
     </AnimatePresence>
   );
+}
+
+function AudioToggle({ on, onClick }: { on: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="absolute left-6 bottom-[2.4vh] z-40 font-sans text-[10px] tracking-regal text-[#b89a52] hover:text-[#f4e1a4] transition-colors flex items-center gap-2"
+      aria-label={on ? "Mute ambient" : "Play ambient"}
+    >
+      <span
+        className="inline-block w-2 h-2 rounded-full"
+        style={{
+          background: on ? "#f4e1a4" : "transparent",
+          border: "1px solid #b89a52",
+          boxShadow: on ? "0 0 8px rgba(244,225,164,0.7)" : "none",
+        }}
+      />
+      {on ? "AMBIENT · ON" : "AMBIENT"}
+    </button>
+  );
+}
+
+/* Aperture wipe — fires a momentary radial mask between scenes. */
+function ApertureWipe({ trigger }: { trigger: SceneKey }) {
+  return (
+    <motion.div
+      key={trigger}
+      aria-hidden
+      className="absolute inset-0 z-10 pointer-events-none"
+      style={{
+        background:
+          "radial-gradient(circle at center, rgba(0,0,0,0) 0%, rgba(0,0,0,0) 35%, rgba(0,0,0,0.4) 70%, rgba(0,0,0,0.9) 100%)",
+        mixBlendMode: "multiply",
+      }}
+      initial={{ opacity: 1, scale: 0.6 }}
+      animate={{ opacity: 0, scale: 1.4 }}
+      transition={{ duration: 1.6, ease: LUX_EASE }}
+    />
+  );
+}
+
+/* Subtle anamorphic horizontal flare — fires once per major beat. */
+function LensFlare({ t }: { t: number }) {
+  // Fire near these moments (scene starts), each flare ~1.2s
+  const beats = useMemo(() => [3.1, 7.1, 10.2, 14.1, 17.2], []);
+  const active = beats.find((b) => t >= b && t < b + 1.4);
+  return (
+    <AnimatePresence>
+      {active != null && (
+        <motion.div
+          key={active}
+          aria-hidden
+          className="absolute inset-x-[-10%] top-1/2 -translate-y-1/2 z-10 pointer-events-none"
+          style={{
+            height: 2,
+            background:
+              "linear-gradient(90deg, rgba(212,175,55,0) 0%, rgba(244,225,164,0.9) 50%, rgba(212,175,55,0) 100%)",
+            filter: "blur(2px)",
+            mixBlendMode: "screen",
+            boxShadow:
+              "0 0 32px rgba(244,225,164,0.6), 0 0 80px rgba(244,225,164,0.35)",
+          }}
+          initial={{ opacity: 0, scaleX: 0.6 }}
+          animate={{ opacity: [0, 0.9, 0], scaleX: [0.6, 1.2, 1.4] }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 1.4, ease: [0.5, 0, 0.2, 1] }}
+        />
+      )}
+    </AnimatePresence>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────── */
+/* Ambient drone — three detuned sines under a low-pass with slow LFO     */
+
+async function startDrone(): Promise<{ stop: () => void }> {
+  const Ctx =
+    typeof window !== "undefined"
+      ? window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+      : null;
+  if (!Ctx) throw new Error("no AudioContext");
+  const ctx = new Ctx();
+
+  const master = ctx.createGain();
+  master.gain.value = 0;
+  master.connect(ctx.destination);
+
+  const filter = ctx.createBiquadFilter();
+  filter.type = "lowpass";
+  filter.frequency.value = 480;
+  filter.Q.value = 0.7;
+  filter.connect(master);
+
+  // Reverb-ish: feedback delay
+  const delay = ctx.createDelay();
+  delay.delayTime.value = 0.35;
+  const fbGain = ctx.createGain();
+  fbGain.gain.value = 0.42;
+  const wet = ctx.createGain();
+  wet.gain.value = 0.55;
+  filter.connect(delay);
+  delay.connect(fbGain);
+  fbGain.connect(delay);
+  delay.connect(wet);
+  wet.connect(master);
+
+  const freqs = [55, 82.4, 110, 164.8]; // A1, E2, A2, E3 — open fifth chord
+  const oscs: OscillatorNode[] = [];
+  freqs.forEach((f, i) => {
+    const o = ctx.createOscillator();
+    o.type = i % 2 === 0 ? "sine" : "triangle";
+    o.frequency.value = f;
+    const detune = ctx.createOscillator();
+    detune.frequency.value = 0.07 + i * 0.03;
+    const detAmt = ctx.createGain();
+    detAmt.gain.value = 6;
+    detune.connect(detAmt);
+    detAmt.connect(o.detune);
+    const g = ctx.createGain();
+    g.gain.value = 0.22 / freqs.length;
+    o.connect(g).connect(filter);
+    o.start();
+    detune.start();
+    oscs.push(o);
+  });
+
+  // Slow swell in
+  master.gain.linearRampToValueAtTime(0.16, ctx.currentTime + 3.0);
+
+  return {
+    stop: () => {
+      const now = ctx.currentTime;
+      master.gain.cancelScheduledValues(now);
+      master.gain.linearRampToValueAtTime(0, now + 0.6);
+      setTimeout(() => {
+        oscs.forEach((o) => o.stop());
+        ctx.close();
+      }, 700);
+    },
+  };
+}
+
+/* clamp helper: scale-with-viewport sizes for the canvas-rasterized text */
+function vmin(vminUnits: number, min: number, max: number) {
+  if (typeof window === "undefined") return (min + max) / 2;
+  const v = (Math.min(window.innerWidth, window.innerHeight) * vminUnits) / 100;
+  return Math.max(min, Math.min(max, v));
 }
