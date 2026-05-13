@@ -343,7 +343,11 @@ const ParticleStage = forwardRef<ParticleStageHandle, { className?: string }>(
         const particles = particlesRef.current;
         for (const p of particles) {
           if (p.alpha < 0.01) continue;
-          const r = p.size * (1 + pulse * 0.6);
+          // Velocity-based bloom — fast-moving particles glow brighter, so
+          // transitions feel kinetic. Stationary particles render small + crisp.
+          const speed = Math.hypot(p.vx, p.vy);
+          const speedBoost = Math.min(2.2, 1 + speed * 0.45);
+          const r = p.size * (1 + pulse * 0.6) * speedBoost;
           const a = Math.min(1, p.alpha * (1 + pulse * 0.4));
           // gold radial blob — additive blending creates the luxury bloom
           const g = ctx2d.createRadialGradient(p.x, p.y, 0, p.x, p.y, r * 6);
