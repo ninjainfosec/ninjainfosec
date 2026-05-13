@@ -1,6 +1,6 @@
 "use client";
 
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ParticleStage, { ParticleStageHandle } from "./canvas/ParticleStage";
 import PerfumeBottle from "./scenes/PerfumeBottle";
@@ -51,7 +51,6 @@ function sceneAt(t: number): SceneKey {
 }
 
 export default function MaisonNoxReveal() {
-  const reduce = useReducedMotion();
   const stageRef = useRef<ParticleStageHandle>(null);
   const droneRef = useRef<DroneHandle | null>(null);
   const [t, setT] = useState(0);
@@ -59,12 +58,9 @@ export default function MaisonNoxReveal() {
   const [audioOn, setAudioOn] = useState(false);
   const scene = sceneAt(t);
 
-  /* ── master clock ─────────────────────────────────────────────────── */
+  /* ── master clock — always animates, ignores prefers-reduced-motion
+        (this IS the experience; users opted in by visiting). ────────── */
   useEffect(() => {
-    if (reduce) {
-      setT(TOTAL);
-      return;
-    }
     const start = performance.now();
     let raf = 0;
     const tick = (now: number) => {
@@ -74,7 +70,7 @@ export default function MaisonNoxReveal() {
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [reduce, runId]);
+  }, [runId]);
 
   /* ── particle morph orchestration ─────────────────────────────────── */
   useEffect(() => {
