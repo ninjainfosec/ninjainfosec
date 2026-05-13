@@ -1,10 +1,19 @@
 import type { Metadata, Viewport } from "next";
-import { Cormorant_Garamond, Inter } from "next/font/google";
+import { Cinzel, Cormorant_Garamond, Inter } from "next/font/google";
 import "./globals.css";
 
+// Cinzel — the Trajan-style display serif used by the actual house wordmark
+const display = Cinzel({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-display",
+  display: "swap",
+});
+
+// Cormorant — softer secondary serif for italic / subtitle work
 const serif = Cormorant_Garamond({
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
+  weight: ["300", "400", "500"],
   variable: "--font-serif",
   display: "swap",
 });
@@ -32,7 +41,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${serif.variable} ${sans.variable}`}>
+    <html lang="en" className={`${display.variable} ${serif.variable} ${sans.variable}`}>
       <body className="bg-nox-black text-[#f5f1e6] antialiased">{children}</body>
     </html>
   );

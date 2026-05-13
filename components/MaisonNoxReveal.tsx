@@ -4,45 +4,30 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ParticleStage, { ParticleStageHandle } from "./canvas/ParticleStage";
 import PerfumeBottle from "./scenes/PerfumeBottle";
-import RoyalCrest from "./scenes/RoyalCrest";
-import MNSigil from "./scenes/MNSigil";
-import LegacyFrame from "./scenes/LegacyFrame";
+import MaisonNoxMark from "./marks/MaisonNoxMark";
+import TheMaisonWorldMark from "./marks/TheMaisonWorldMark";
 
 /*
- * MASTER TIMELINE (25.5s)
+ * MASTER TIMELINE (20s) — restrained, cinematic, real brand identity.
  *
- *   ▢ 0.0  – 2.5  · PREROLL    · "A MAISON NOX FILM — presented by THE MAISON WORLD"
- *   ▢ 2.5  – 5.0  · VOID       · gold dust drifts in pure black
- *   ▢ 5.0  – 9.5  · MONOGRAM   · particles converge into the MN sigil, SVG mark blooms over them
- *   ▢ 9.5  – 12.5 · WORDMARK   · sigil dissolves; particles flow into MAISON NOX
- *   ▢ 12.5 – 16.5 · FLACON     · particles disperse, the bottle rises into the cleared stage
- *   ▢ 16.5 – 19.5 · STATEMENT  · particles reform as "NOT A PERFUME. A PRESENCE."
- *   ▢ 19.5 – 25.5 · LEGACY     · ornamental frame draws in, crest descends, lockup settles
- *
- * Audio (when AMBIENT is on): a procedural drone underneath, plus a soft
- * filtered bell sting on every act break.
+ *   ▢ 0  – 2.5  · VOID       · gold dust drifts in pure black
+ *   ▢ 2.5– 8    · REVEAL     · MAISON NOX shield mark + wordmark trace in
+ *   ▢ 8  – 13   · FLACON     · particles disperse, the flacon rises
+ *   ▢ 13 – 16   · STATEMENT  · "NOT A PERFUME. A PRESENCE."
+ *   ▢ 16 – 20   · LEGACY     · settles on THE MAISON WORLD shield · HOUSE OF DISTINCTION
  */
 
 const LUX_EASE: [number, number, number, number] = [0.22, 0.8, 0.2, 1];
-const TOTAL = 25.5;
+const TOTAL = 20;
 
-type SceneKey =
-  | "preroll"
-  | "void"
-  | "monogram"
-  | "wordmark"
-  | "flacon"
-  | "statement"
-  | "legacy";
+type SceneKey = "void" | "reveal" | "flacon" | "statement" | "legacy";
 
 const SCENES: { key: SceneKey; start: number; end: number }[] = [
-  { key: "preroll", start: 0, end: 2.5 },
-  { key: "void", start: 2.5, end: 5.0 },
-  { key: "monogram", start: 5.0, end: 9.5 },
-  { key: "wordmark", start: 9.5, end: 12.5 },
-  { key: "flacon", start: 12.5, end: 16.5 },
-  { key: "statement", start: 16.5, end: 19.5 },
-  { key: "legacy", start: 19.5, end: TOTAL },
+  { key: "void", start: 0, end: 2.5 },
+  { key: "reveal", start: 2.5, end: 8 },
+  { key: "flacon", start: 8, end: 13 },
+  { key: "statement", start: 13, end: 16 },
+  { key: "legacy", start: 16, end: TOTAL },
 ];
 
 function sceneAt(t: number): SceneKey {
@@ -58,8 +43,7 @@ export default function MaisonNoxReveal() {
   const [audioOn, setAudioOn] = useState(false);
   const scene = sceneAt(t);
 
-  /* ── master clock — always animates, ignores prefers-reduced-motion
-        (this IS the experience; users opted in by visiting). ────────── */
+  /* ── master clock ─────────────────────────────────────────────────── */
   useEffect(() => {
     const start = performance.now();
     let raf = 0;
@@ -77,21 +61,14 @@ export default function MaisonNoxReveal() {
     const s = stageRef.current;
     if (!s) return;
     switch (scene) {
-      case "preroll":
       case "void":
         s.morph({ kind: "drift" });
         break;
-      case "monogram":
-        s.morph({ kind: "monogram" });
+      case "reveal":
+        // Particles drift toward center as a soft halo behind the shield mark.
+        // We don't form letters here — the SVG mark is the hero.
+        s.morph({ kind: "drift" });
         s.pulse();
-        break;
-      case "wordmark":
-        s.morph({
-          kind: "text",
-          lines: [
-            { text: "MAISON NOX", size: vmin(11, 56, 130), weight: "500", letterSpacing: 14 },
-          ],
-        });
         break;
       case "flacon":
         s.morph({ kind: "disperse" });
@@ -107,18 +84,10 @@ export default function MaisonNoxReveal() {
         });
         break;
       case "legacy":
-        s.morph({
-          kind: "text",
-          lines: [
-            { text: "THE MAISON WORLD", size: vmin(6.4, 38, 92), weight: "500", letterSpacing: 12 },
-            { text: "HOUSE OF DISTINCTION", size: vmin(1.4, 11, 18), weight: "300", letterSpacing: 8 },
-          ],
-          lineGap: 22,
-          yOffset: vmin(6, 30, 70),
-        });
+        // Hold the final frame — particles drift gently behind the parent mark.
+        s.morph({ kind: "drift" });
         break;
     }
-    // Audio sting on every scene transition (cheap procedural bell)
     droneRef.current?.sting(scene === "legacy" ? "deep" : "soft");
   }, [scene]);
 
@@ -139,7 +108,6 @@ export default function MaisonNoxReveal() {
   }, [audioOn]);
 
   useEffect(() => () => droneRef.current?.stop(), []);
-
   const replay = useCallback(() => setRunId((n) => n + 1), []);
 
   return (
@@ -147,141 +115,72 @@ export default function MaisonNoxReveal() {
       className="relative h-[100svh] w-full overflow-hidden bg-nox-black select-none grain"
       key={`stage-${runId}`}
     >
-      {/* Volumetric backdrop — amber pool below, gold flare at center,
-          and a discreet oxblood wash for richness */}
+      {/* Volumetric backdrop — amber from below, faint center wash */}
       <div
         aria-hidden
         className="absolute inset-0 pointer-events-none"
         style={{
           background:
-            "radial-gradient(ellipse 80% 60% at 50% 105%, rgba(184,134,11,0.16) 0%, rgba(184,134,11,0.04) 40%, rgba(0,0,0,0) 70%), radial-gradient(ellipse 60% 50% at 50% 40%, rgba(212,175,55,0.08) 0%, rgba(0,0,0,0) 60%), radial-gradient(ellipse 90% 70% at 50% 80%, rgba(72,18,18,0.18) 0%, rgba(72,18,18,0) 60%)",
+            "radial-gradient(ellipse 80% 60% at 50% 105%, rgba(184,134,11,0.16) 0%, rgba(184,134,11,0.04) 40%, rgba(0,0,0,0) 70%), radial-gradient(ellipse 60% 50% at 50% 45%, rgba(212,175,55,0.07) 0%, rgba(0,0,0,0) 65%)",
         }}
       />
 
-      {/* Cinematic camera drift wraps every layer for parallax */}
+      {/* Cinematic camera drift */}
       <motion.div
         key={`cam-${runId}`}
         className="absolute inset-0"
-        initial={{ scale: 1.05, x: -10, y: 8 }}
+        initial={{ scale: 1.04, x: -8, y: 6 }}
         animate={{
-          scale: [1.05, 1.0, 1.02, 1.0, 1.03],
-          x: [-10, 4, -3, 6, 0],
-          y: [8, -2, 5, -3, 0],
+          scale: [1.04, 1.0, 1.02, 1.0],
+          x: [-8, 3, -2, 0],
+          y: [6, -2, 4, 0],
         }}
         transition={{ duration: TOTAL, ease: "easeInOut" }}
       >
-        {/* Particle field — the living medium */}
+        {/* Particle field — atmospheric, not flashy */}
         <ParticleStage ref={stageRef} />
 
-        {/* Center awakening glow — peaks during transitions */}
+        {/* Center glow — gentle, never hot */}
         <motion.div
           key={`glow-${runId}`}
           className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none"
           style={{
-            width: "78vmin",
-            height: "78vmin",
+            width: "70vmin",
+            height: "70vmin",
             background:
-              "radial-gradient(circle, rgba(244,225,164,0.32) 0%, rgba(212,175,55,0.10) 30%, rgba(0,0,0,0) 65%)",
+              "radial-gradient(circle, rgba(212,175,55,0.22) 0%, rgba(212,175,55,0.06) 35%, rgba(0,0,0,0) 65%)",
             filter: "blur(28px)",
             mixBlendMode: "screen",
           }}
-          initial={{ opacity: 0, scale: 0.5 }}
+          initial={{ opacity: 0, scale: 0.6 }}
           animate={{
-            opacity: [0, 0.15, 0.0, 0.55, 0.7, 0.45, 0.55, 0.35, 0.4],
-            scale: [0.5, 0.6, 0.7, 1.0, 1.1, 0.95, 1.0, 0.95, 1.05],
+            opacity: [0, 0.15, 0.5, 0.35, 0.45, 0.55],
+            scale: [0.6, 0.7, 1.0, 0.95, 1.0, 1.05],
           }}
           transition={{
             duration: TOTAL,
             ease: "easeInOut",
-            // preroll, void, mono start, mono peak, word, flacon, statement, legacy start, end
-            // 0, 2.5, 5, 7.25, 9.5, 12.5, 16.5, 19.5, 25.5
-            times: [0, 0.098, 0.196, 0.284, 0.373, 0.49, 0.647, 0.765, 1],
+            times: [0, 0.125, 0.4, 0.65, 0.8, 1],
           }}
         />
 
-        {/* Anamorphic horizontal volumetric pass */}
-        <motion.div
-          key={`bar-${runId}`}
-          aria-hidden
-          className="absolute -inset-x-20 top-1/2 -translate-y-1/2 h-[26vmin] pointer-events-none"
-          style={{
-            background:
-              "linear-gradient(90deg, rgba(212,175,55,0) 0%, rgba(244,225,164,0.16) 50%, rgba(212,175,55,0) 100%)",
-            filter: "blur(36px)",
-            mixBlendMode: "screen",
-          }}
-          initial={{ x: "-45%", opacity: 0 }}
-          animate={{
-            x: ["-45%", "-10%", "10%", "30%"],
-            opacity: [0, 0.5, 0.55, 0.25],
-          }}
-          transition={{ duration: TOTAL, ease: "easeInOut" }}
-        />
-
-        {/* Scene 1 — preroll title card */}
+        {/* SCENE: Maison Nox reveal */}
         <AnimatePresence>
-          {scene === "preroll" && (
+          {scene === "reveal" && (
             <motion.div
-              key="preroll"
-              className="absolute inset-0 flex items-center justify-center text-center px-6"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0, filter: "blur(6px)" }}
-              transition={{ duration: 1.2, ease: LUX_EASE }}
-            >
-              <div>
-                <motion.p
-                  className="font-sans text-[9px] tracking-[0.7em] text-[#8c6f1e]"
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 1.2, delay: 0.3, ease: LUX_EASE }}
-                >
-                  A&nbsp;&nbsp;MAISON&nbsp;&nbsp;NOX&nbsp;&nbsp;FILM
-                </motion.p>
-                <motion.div
-                  className="mt-6 h-px w-32 mx-auto bg-gradient-to-r from-transparent via-[#d4af37] to-transparent"
-                  initial={{ scaleX: 0, opacity: 0 }}
-                  animate={{ scaleX: 1, opacity: 1 }}
-                  transition={{ duration: 1.0, delay: 0.7, ease: LUX_EASE }}
-                />
-                <motion.p
-                  className="mt-5 font-serif gold-foil-soft text-[clamp(0.9rem,1.7vmin,1.1rem)] tracking-[0.5em]"
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 1.2, delay: 1.0, ease: LUX_EASE }}
-                >
-                  PRESENTED BY
-                </motion.p>
-                <motion.p
-                  className="mt-2 font-serif gold-foil text-[clamp(1.3rem,3vmin,2rem)] tracking-[0.42em]"
-                  initial={{ opacity: 0, y: 12, filter: "blur(8px)" }}
-                  animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-                  transition={{ duration: 1.4, delay: 1.2, ease: LUX_EASE }}
-                >
-                  THE MAISON WORLD
-                </motion.p>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Scene 3 — MN sigil overlays the particle convergence */}
-        <AnimatePresence>
-          {scene === "monogram" && (
-            <motion.div
-              key="sigil"
+              key="reveal"
               className="absolute inset-0 flex items-center justify-center pointer-events-none"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              exit={{ opacity: 0, filter: "blur(8px)", scale: 1.06 }}
-              transition={{ duration: 1.3, ease: LUX_EASE }}
+              exit={{ opacity: 0, filter: "blur(6px)", scale: 1.03 }}
+              transition={{ duration: 1.0, ease: LUX_EASE }}
             >
-              <MNSigil active />
+              <MaisonNoxMark active />
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Scene 5 — flacon */}
+        {/* SCENE: Flacon */}
         <AnimatePresence>
           {scene === "flacon" && (
             <motion.div
@@ -289,61 +188,48 @@ export default function MaisonNoxReveal() {
               className="absolute inset-0 flex items-end justify-center pb-[14vh]"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              exit={{ opacity: 0, scale: 1.04, filter: "blur(8px)" }}
-              transition={{ duration: 1.4, ease: LUX_EASE }}
+              exit={{ opacity: 0, scale: 1.03, filter: "blur(6px)" }}
+              transition={{ duration: 1.2, ease: LUX_EASE }}
             >
               <PerfumeBottle active />
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Scene 7 — ornamental frame + crest */}
+        {/* SCENE: Legacy — final hold on the parent mark */}
         <AnimatePresence>
           {scene === "legacy" && (
-            <>
-              <motion.div
-                key="frame"
-                className="absolute inset-0 flex items-center justify-center pointer-events-none"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 1.0, ease: LUX_EASE }}
-              >
-                <LegacyFrame active />
-              </motion.div>
-              <motion.div
-                key="crest"
-                className="absolute left-1/2 -translate-x-1/2 pointer-events-none"
-                style={{ top: "22%" }}
-                initial={{ opacity: 0, y: 14, scale: 0.92 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 1.8, delay: 0.4, ease: LUX_EASE }}
-              >
-                <RoyalCrest active />
-              </motion.div>
-            </>
+            <motion.div
+              key="legacy"
+              className="absolute inset-0 flex items-center justify-center pointer-events-none"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 1.2, ease: LUX_EASE }}
+            >
+              <TheMaisonWorldMark active />
+            </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Aperture wipe between scenes */}
+        {/* Soft aperture wipe between scenes */}
         <ApertureWipe trigger={scene} />
 
-        {/* Anamorphic horizontal lens flare on each act break */}
+        {/* Single anamorphic flare fires at each act break */}
         <LensFlare t={t} />
       </motion.div>
 
-      {/* Letterbox bars breathe through the reel */}
+      {/* Letterbox bars — breathe gently */}
       <motion.div
         className="pointer-events-none absolute inset-x-0 top-0 z-30 bg-black"
-        initial={{ height: "14vh" }}
-        animate={{ height: ["14vh", "9vh", "6vh", "8vh", "10vh"] }}
+        initial={{ height: "12vh" }}
+        animate={{ height: ["12vh", "7vh", "6vh", "8vh"] }}
         transition={{ duration: TOTAL, ease: "easeInOut" }}
       />
       <motion.div
         className="pointer-events-none absolute inset-x-0 bottom-0 z-30 bg-black"
-        initial={{ height: "14vh" }}
-        animate={{ height: ["14vh", "9vh", "6vh", "8vh", "10vh"] }}
+        initial={{ height: "12vh" }}
+        animate={{ height: ["12vh", "7vh", "6vh", "8vh"] }}
         transition={{ duration: TOTAL, ease: "easeInOut" }}
       />
 
@@ -353,7 +239,7 @@ export default function MaisonNoxReveal() {
         className="pointer-events-none absolute inset-0 z-20"
         style={{
           background:
-            "radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.78) 95%)",
+            "radial-gradient(ellipse at center, transparent 42%, rgba(0,0,0,0.78) 95%)",
         }}
       />
 
@@ -368,26 +254,21 @@ export default function MaisonNoxReveal() {
 /* ────────────────────────────────────────────────────────────────────── */
 
 function ChapterRail({ scene }: { scene: SceneKey }) {
-  // Don't show the rail during pre-roll — let the title card breathe.
   const idx = SCENES.findIndex((s) => s.key === scene);
-  if (scene === "preroll") return null;
   return (
     <div className="pointer-events-none absolute bottom-[2.6vh] left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 opacity-70">
-      {SCENES.slice(1).map((s, i) => {
-        const realIdx = i + 1;
-        return (
-          <motion.span
-            key={s.key}
-            className="block h-px"
-            style={{
-              width: realIdx === idx ? 32 : 14,
-              background: realIdx <= idx ? "#d4af37" : "rgba(212,175,55,0.22)",
-            }}
-            animate={{ width: realIdx === idx ? 32 : 14 }}
-            transition={{ duration: 0.7, ease: LUX_EASE }}
-          />
-        );
-      })}
+      {SCENES.map((s, i) => (
+        <motion.span
+          key={s.key}
+          className="block h-px"
+          style={{
+            width: i === idx ? 28 : 12,
+            background: i <= idx ? "#d4af37" : "rgba(212,175,55,0.22)",
+          }}
+          animate={{ width: i === idx ? 28 : 12 }}
+          transition={{ duration: 0.7, ease: LUX_EASE }}
+        />
+      ))}
     </div>
   );
 }
@@ -453,7 +334,7 @@ function ApertureWipe({ trigger }: { trigger: SceneKey }) {
 }
 
 function LensFlare({ t }: { t: number }) {
-  const beats = useMemo(() => [2.6, 5.1, 9.6, 12.6, 16.6, 19.6], []);
+  const beats = useMemo(() => [2.6, 8.1, 13.1, 16.1], []);
   const active = beats.find((b) => t >= b && t < b + 1.4);
   return (
     <AnimatePresence>
@@ -472,7 +353,7 @@ function LensFlare({ t }: { t: number }) {
               "0 0 32px rgba(244,225,164,0.6), 0 0 80px rgba(244,225,164,0.35)",
           }}
           initial={{ opacity: 0, scaleX: 0.6 }}
-          animate={{ opacity: [0, 0.9, 0], scaleX: [0.6, 1.2, 1.4] }}
+          animate={{ opacity: [0, 0.85, 0], scaleX: [0.6, 1.2, 1.4] }}
           exit={{ opacity: 0 }}
           transition={{ duration: 1.4, ease: [0.5, 0, 0.2, 1] }}
         />
@@ -544,7 +425,6 @@ async function startDrone(): Promise<DroneHandle> {
 
   master.gain.linearRampToValueAtTime(0.16, ctx.currentTime + 3.0);
 
-  // Procedural bell sting — filtered sine with quick exponential decay
   const sting = (kind: "soft" | "deep") => {
     const now = ctx.currentTime;
     const base = kind === "deep" ? 220 : 660;

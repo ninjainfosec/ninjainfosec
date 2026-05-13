@@ -18,7 +18,8 @@ const config: Config = {
         },
       },
       fontFamily: {
-        serif: ["var(--font-serif)", "Cormorant Garamond", "Playfair Display", "serif"],
+        display: ["var(--font-display)", "Cinzel", "Trajan Pro", "serif"],
+        serif: ["var(--font-serif)", "Cormorant Garamond", "serif"],
         sans: ["var(--font-sans)", "Inter", "system-ui", "sans-serif"],
       },
       letterSpacing: {

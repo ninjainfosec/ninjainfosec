@@ -175,22 +175,20 @@ function BottleSVG({ mirrored = false }: { mirrored?: boolean }) {
         <rect x="102" y="130" width="3" height="14" fill="rgba(255,255,255,0.45)" />
       </g>
 
-      {/* Glass body — slight refraction filter applied */}
-      <g filter="url(#refract)">
-        <path
-          d="M40 178
-             Q40 152 76 148
-             L164 148
-             Q200 152 200 178
-             L200 470
-             Q200 494 174 494
-             L66 494
-             Q40 494 40 470 Z"
-          fill="url(#glass-body)"
-          stroke="rgba(212,175,55,0.20)"
-          strokeWidth="0.8"
-        />
-      </g>
+      {/* Glass body */}
+      <path
+        d="M40 178
+           Q40 152 76 148
+           L164 148
+           Q200 152 200 178
+           L200 470
+           Q200 494 174 494
+           L66 494
+           Q40 494 40 470 Z"
+        fill="url(#glass-body)"
+        stroke="rgba(212,175,55,0.20)"
+        strokeWidth="0.8"
+      />
 
       {/* Amber liquid level inside the bottle (clipped to bottle interior) */}
       <defs>
