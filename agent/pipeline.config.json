@@ -29,20 +29,20 @@
       "description": "Generate a working Next.js app, DB schema and architecture notes into output/."
     },
     {
-      "id": "security",
-      "name": "Security audit",
-      "module": "./stages/security.js",
-      "gate": true,
-      "tool": "static scan + /security-review",
-      "description": "Dependency CVEs, headers, auth misconfig and OWASP checks against OWN preview only."
-    },
-    {
       "id": "preview",
       "name": "Preview deploy",
       "module": "./stages/preview.js",
       "gate": true,
       "tool": "Vercel REST API (real; needs VERCEL_TOKEN)",
       "description": "Deploy the scaffolded site to a Vercel preview URL for review."
+    },
+    {
+      "id": "security",
+      "name": "Security audit",
+      "module": "./stages/security.js",
+      "gate": true,
+      "tool": "static scan + live header checks (real)",
+      "description": "Static scan of OWN code + header checks against OWN preview URL."
     },
     {
       "id": "domain",

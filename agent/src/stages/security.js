@@ -1,20 +1,40 @@
-// STUB. Static + own-asset only. Real run drives /security-review and scanners.
-// SCOPE: only the site we just built / its own preview URL. No third-party targets.
+// REAL stage. Static security scan of OUR scaffold + live header checks against
+// OUR preview URL. Scope-limited to assets we built. No exploitation tooling.
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import { existsSync } from "node:fs";
+import { scanStatic, checkHeaders, summarize } from "../scan.js";
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+
 export async function run({ run, log }) {
-  log.warn("security: STUB — returns a checklist; real run executes scans on OUR preview only.");
-  const report = {
-    scope: run.briefStructured?.slug || "site",
-    checks: [
-      { id: "deps-cve", desc: "npm audit / dependency CVEs", status: "todo" },
-      { id: "headers", desc: "CSP, HSTS, X-Frame-Options, etc.", status: "todo" },
-      { id: "authz", desc: "auth & access-control misconfig", status: "todo" },
-      { id: "owasp", desc: "OWASP top-10 against own preview URL", status: "todo" },
-      { id: "secrets", desc: "leaked secrets / .env exposure", status: "todo" },
-    ],
-    findings: [],
-    note: "Live pentesting is restricted to assets you own and authorize.",
-  };
+  const rel = run.scaffold?.outDir;
+  if (!rel) throw new Error("no scaffold output — run the scaffold stage first");
+  const dir = join(ROOT, rel);
+  if (!existsSync(dir)) throw new Error(`scaffold dir missing: ${rel}`);
+
+  const findings = [];
+
+  const stat = scanStatic(dir);
+  findings.push(...stat.findings);
+  log.info(`static: scanned ${stat.fileCount} files, ${stat.findings.length} finding(s)`);
+
+  const url = run.preview && !run.preview.dryRun ? run.preview.url : null;
+  if (url) {
+    const hdr = await checkHeaders(url);
+    findings.push(...hdr.findings);
+    log.info(`headers: ${url} -> ${hdr.findings.length} finding(s)`);
+  } else {
+    log.dim("  headers: skipped (no live preview URL yet)");
+  }
+
+  const counts = summarize(findings);
+  for (const x of findings) log.dim(`  [${x.severity}] ${x.title} — ${x.where}`);
+  log[counts.high ? "warn" : "ok"](
+    `summary: ${counts.high} high, ${counts.medium} medium, ${counts.low} low, ${counts.info} info`
+  );
+
+  const report = { scope: rel, counts, findings, scannedUrl: url };
   run.security = report;
-  log.info(`${report.checks.length} checks queued for ${report.scope}`);
   return report;
 }

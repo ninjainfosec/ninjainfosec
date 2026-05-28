@@ -42,7 +42,23 @@ function buildNextApp(b, d) {
       null,
       2
     ),
-    "next.config.mjs": `/** @type {import('next').NextConfig} */\nexport default { reactStrictMode: true };\n`,
+    "next.config.mjs": `/** @type {import('next').NextConfig} */
+const securityHeaders = [
+  { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
+  { key: "Content-Security-Policy", value: "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'" },
+  { key: "X-Frame-Options", value: "DENY" },
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+];
+
+export default {
+  reactStrictMode: true,
+  async headers() {
+    return [{ source: "/:path*", headers: securityHeaders }];
+  },
+};
+`,
     "app/layout.jsx": `import "./globals.css";
 
 export const metadata = { title: ${JSON.stringify(b.title)}, description: "Built by the website-factory agent." };
