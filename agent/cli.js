@@ -6,7 +6,11 @@ import { attachHero } from "./src/hero.js";
 import { run as scaffoldStage } from "./src/stages/scaffold.js";
 import { log } from "./src/log.js";
 
-const [cmd, ...rest] = process.argv.slice(2);
+const argv = process.argv.slice(2);
+const cmd = argv[0];
+const flags = new Set(argv.slice(1).filter((a) => a.startsWith("-")));
+const rest = argv.slice(1).filter((a) => !a.startsWith("-"));
+const auto = cmd === "auto" || flags.has("--yes") || flags.has("-y");
 
 const config = loadConfig();
 const stages = await loadStages(config);
@@ -21,7 +25,8 @@ function currentRun() {
 }
 
 switch (cmd) {
-  case "run": {
+  case "run":
+  case "auto": {
     let run = loadRun(latestRunId() || "");
     const brief = rest.join(" ").trim();
     if (!run || brief) {
@@ -30,11 +35,12 @@ switch (cmd) {
         process.exit(1);
       }
       run = saveRun(newRun(brief, stages, config.stack));
-      log.ok(`Started ${run.id} (stack: ${config.stack})`);
+      log.ok(`Started ${run.id} (stack: ${config.stack})${auto ? " — unattended" : ""}`);
     } else {
       log.info(`Resuming ${run.id}`);
     }
-    await advance(run, stages);
+    if (auto) log.dim("  auto mode: review gates auto-approved; money/go-live still need ALLOW_* env flags");
+    await advance(run, stages, { autoApprove: auto });
     break;
   }
   case "approve": {
@@ -70,7 +76,8 @@ switch (cmd) {
   default:
     log.title("website-factory agent");
     console.log(`
-  node cli.js run "<idea>"     start a new pipeline run
+  node cli.js auto "<idea>"    ONE-CLICK: run all stages unattended
+  node cli.js run "<idea>"     start a new pipeline run (gated)
   node cli.js run              resume the latest run
   node cli.js approve [note]   approve the current gate, continue
   node cli.js reject "<why>"   reject current stage (regenerates on next run)

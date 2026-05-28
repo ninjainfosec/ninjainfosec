@@ -8,6 +8,7 @@
     "factory": "./cli.js"
   },
   "scripts": {
+    "auto": "node cli.js auto",
     "run": "node cli.js run",
     "approve": "node cli.js approve",
     "reject": "node cli.js reject",
