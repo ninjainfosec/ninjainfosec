@@ -1,0 +1,19 @@
+{
+  "name": "website-factory-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Autonomous website pipeline: brief -> design -> code -> security -> deploy, with human gates.",
+  "bin": {
+    "factory": "./cli.js"
+  },
+  "scripts": {
+    "run": "node cli.js run",
+    "approve": "node cli.js approve",
+    "reject": "node cli.js reject",
+    "status": "node cli.js status"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

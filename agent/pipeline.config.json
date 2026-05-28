@@ -1,0 +1,72 @@
+{
+  "stack": "nextjs-vercel",
+  "defaults": {
+    "gateEveryStage": true
+  },
+  "stages": [
+    {
+      "id": "brief",
+      "name": "Capture brief",
+      "module": "./stages/brief.js",
+      "gate": true,
+      "tool": "human input",
+      "description": "Turn the raw idea into a structured brief (goals, pages, brand, audience)."
+    },
+    {
+      "id": "design",
+      "name": "Design & UI/UX",
+      "module": "./stages/design.js",
+      "gate": true,
+      "tool": "mcp__canva__generate-design + image-gen MCP",
+      "description": "Generate visual direction, layouts, fonts, color system and key imagery."
+    },
+    {
+      "id": "scaffold",
+      "name": "Scaffold code + DB + architecture",
+      "module": "./stages/scaffold.js",
+      "gate": true,
+      "tool": "this agent (real)",
+      "description": "Generate a working Next.js app, DB schema and architecture notes into output/."
+    },
+    {
+      "id": "security",
+      "name": "Security audit",
+      "module": "./stages/security.js",
+      "gate": true,
+      "tool": "static scan + /security-review",
+      "description": "Dependency CVEs, headers, auth misconfig and OWASP checks against OWN preview only."
+    },
+    {
+      "id": "preview",
+      "name": "Preview deploy",
+      "module": "./stages/preview.js",
+      "gate": true,
+      "tool": "mcp__vercel__deploy_to_vercel",
+      "description": "Push to GitHub and deploy a Vercel preview URL for review."
+    },
+    {
+      "id": "domain",
+      "name": "Domain acquisition",
+      "module": "./stages/domain.js",
+      "gate": true,
+      "tool": "mcp__vercel__check_domain_availability_and_price",
+      "description": "MONEY GATE. Check availability/price; purchase only after explicit human approval."
+    },
+    {
+      "id": "dns",
+      "name": "DNS & email records",
+      "module": "./stages/dns.js",
+      "gate": true,
+      "tool": "Vercel domains / DNS provider",
+      "description": "Set A/CNAME + SPF/DKIM/DMARC (Resend-style email) records."
+    },
+    {
+      "id": "production",
+      "name": "Go live",
+      "module": "./stages/production.js",
+      "gate": true,
+      "tool": "mcp__vercel__deploy_to_vercel (prod)",
+      "description": "GO-LIVE GATE. Promote to production and point the domain at it."
+    }
+  ]
+}
