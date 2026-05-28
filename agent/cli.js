@@ -68,6 +68,18 @@ switch (cmd) {
     log.ok("scaffold refreshed; hero now backgrounds the landing section.");
     break;
   }
+  case "set-preview": {
+    const url = rest.join(" ").trim();
+    if (!url) {
+      log.err("Provide a deployed URL: node cli.js set-preview https://my-site.vercel.app");
+      process.exit(1);
+    }
+    const run = currentRun();
+    run.preview = { dryRun: false, target: "preview", url, source: "mcp" };
+    saveRun(run);
+    log.ok(`preview URL recorded: ${url} (security stage will scan it)`);
+    break;
+  }
   case "status": {
     const run = currentRun();
     printStatus(run, stages);
@@ -82,6 +94,7 @@ switch (cmd) {
   node cli.js approve [note]   approve the current gate, continue
   node cli.js reject "<why>"   reject current stage (regenerates on next run)
   node cli.js attach-hero <p>  attach a hero image (local path or URL) to the project
+  node cli.js set-preview <u>  record an externally-deployed (e.g. MCP) preview URL
   node cli.js status           show progress
 `);
 }
