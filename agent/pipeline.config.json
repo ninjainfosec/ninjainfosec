@@ -49,24 +49,24 @@
       "name": "Domain acquisition",
       "module": "./stages/domain.js",
       "gate": true,
-      "tool": "mcp__vercel__check_domain_availability_and_price",
-      "description": "MONEY GATE. Check availability/price; purchase only after explicit human approval."
+      "tool": "Vercel domains API (real check; guarded purchase)",
+      "description": "MONEY GATE. Check availability/price; buy only with ALLOW_DOMAIN_PURCHASE=1."
     },
     {
       "id": "dns",
       "name": "DNS & email records",
       "module": "./stages/dns.js",
       "gate": true,
-      "tool": "Vercel domains / DNS provider",
-      "description": "Set A/CNAME + SPF/DKIM/DMARC (Resend-style email) records."
+      "tool": "Vercel DNS API (real; guarded writes)",
+      "description": "Build A/CNAME + SPF/DKIM/DMARC; write only with ALLOW_DNS_WRITE=1."
     },
     {
       "id": "production",
       "name": "Go live",
       "module": "./stages/production.js",
       "gate": true,
-      "tool": "mcp__vercel__deploy_to_vercel (prod)",
-      "description": "GO-LIVE GATE. Promote to production and point the domain at it."
+      "tool": "Vercel REST API prod deploy (real; guarded)",
+      "description": "GO-LIVE GATE. Promote to production only with ALLOW_GO_LIVE=1."
     }
   ]
 }
