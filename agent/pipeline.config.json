@@ -17,8 +17,8 @@
       "name": "Design & UI/UX",
       "module": "./stages/design.js",
       "gate": true,
-      "tool": "mcp__canva__generate-design + image-gen MCP",
-      "description": "Generate visual direction, layouts, fonts, color system and key imagery."
+      "tool": "design-system generator (real) + image-gen MCP (optional)",
+      "description": "Derive fonts, color system and tokens from the brief; hero imagery via image-gen."
     },
     {
       "id": "scaffold",
