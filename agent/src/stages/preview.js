@@ -1,14 +1,30 @@
-// STUB. Real run: push to GitHub then deploy a Vercel preview.
-//   mcp__github__push_files
-//   mcp__vercel__deploy_to_vercel  (target: preview)
-//   mcp__vercel__get_deployment_build_logs
+// REAL stage. Deploys the scaffolded site to a Vercel PREVIEW via REST API.
+// Live when VERCEL_TOKEN is set; otherwise prints a dry-run deploy plan.
+import { join } from "node:path";
+import { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import { existsSync } from "node:fs";
+import { deploy } from "../vercel.js";
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+
 export async function run({ run, log }) {
-  log.warn("preview: STUB — real run pushes to GitHub and deploys a Vercel preview.");
-  const artifact = {
-    repo: run.briefStructured?.slug || "site",
-    previewUrl: null, // filled by mcp__vercel__deploy_to_vercel
-    todo: ["push_files", "deploy_to_vercel(preview)", "tail build logs"],
-  };
-  run.preview = artifact;
-  return artifact;
+  const rel = run.scaffold?.outDir;
+  if (!rel) throw new Error("no scaffold output — run the scaffold stage first");
+  const dir = join(ROOT, rel);
+  if (!existsSync(dir)) throw new Error(`scaffold dir missing: ${rel}`);
+
+  const name = (run.briefStructured?.slug || "site").replace(/[^a-z0-9-]/g, "").slice(0, 52);
+  log.info(`deploying ${rel} -> Vercel preview as "${name}"`);
+
+  const result = await deploy(dir, name, "preview", { onLog: (m) => log.dim("  " + m) });
+
+  if (result.dryRun) {
+    log.warn(`DRY-RUN: ${result.fileCount} files (${result.totalKb} KB) ready to deploy.`);
+    log.dim("  " + result.note);
+  } else {
+    log.ok(`Preview live: ${result.url}`);
+  }
+  run.preview = result;
+  return result;
 }

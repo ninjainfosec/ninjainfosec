@@ -41,8 +41,8 @@
       "name": "Preview deploy",
       "module": "./stages/preview.js",
       "gate": true,
-      "tool": "mcp__vercel__deploy_to_vercel",
-      "description": "Push to GitHub and deploy a Vercel preview URL for review."
+      "tool": "Vercel REST API (real; needs VERCEL_TOKEN)",
+      "description": "Deploy the scaffolded site to a Vercel preview URL for review."
     },
     {
       "id": "domain",
