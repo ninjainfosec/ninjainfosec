@@ -2,6 +2,8 @@
 import { loadConfig, loadStages } from "./src/pipeline.js";
 import { loadRun, saveRun, newRun, latestRunId } from "./src/state.js";
 import { advance, approveCurrent, rejectCurrent } from "./src/orchestrator.js";
+import { attachHero } from "./src/hero.js";
+import { run as scaffoldStage } from "./src/stages/scaffold.js";
 import { log } from "./src/log.js";
 
 const [cmd, ...rest] = process.argv.slice(2);
@@ -46,6 +48,20 @@ switch (cmd) {
     rejectCurrent(run, stages, rest.join(" "));
     break;
   }
+  case "attach-hero": {
+    const source = rest.join(" ").trim();
+    if (!source) {
+      log.err('Provide an image path or URL: node cli.js attach-hero ./hero.png');
+      process.exit(1);
+    }
+    const run = currentRun();
+    const dest = await attachHero(run, source);
+    log.ok(`hero saved -> ${dest.replace(process.cwd() + "/", "")}`);
+    await scaffoldStage({ run, log }); // refresh files so the hero renders
+    saveRun(run);
+    log.ok("scaffold refreshed; hero now backgrounds the landing section.");
+    break;
+  }
   case "status": {
     const run = currentRun();
     printStatus(run, stages);
@@ -58,6 +74,7 @@ switch (cmd) {
   node cli.js run              resume the latest run
   node cli.js approve [note]   approve the current gate, continue
   node cli.js reject "<why>"   reject current stage (regenerates on next run)
+  node cli.js attach-hero <p>  attach a hero image (local path or URL) to the project
   node cli.js status           show progress
 `);
 }
