@@ -1,0 +1,86 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --gold: #d4af37;
+  --gold-bright: #e8c76b;
+  --gold-deep: #8c6f1e;
+  --gold-ember: #b8860b;
+  --nox-black: #000000;
+  --nox-void: #050505;
+}
+
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+html,
+body {
+  background: var(--nox-black);
+  color: #f5f1e6;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+}
+
+body {
+  background: #000;
+}
+
+canvas {
+  display: block;
+}
+
+/* Gold foil text — used on the headline/legacy text */
+.gold-foil {
+  background: linear-gradient(
+    180deg,
+    #f4e1a4 0%,
+    #d4af37 30%,
+    #8c6f1e 55%,
+    #d4af37 78%,
+    #f4e1a4 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 14px rgba(212, 175, 55, 0.18));
+}
+
+.gold-foil-soft {
+  background: linear-gradient(
+    180deg,
+    #efd998 0%,
+    #d4af37 50%,
+    #b8860b 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 6px rgba(212, 175, 55, 0.12));
+}
+
+/* Grain overlay — adds analog cinematic texture */
+.grain::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.06;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.6'/></svg>");
+}
+
+/* Vignette */
+.vignette::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 45%, rgba(0, 0, 0, 0.85) 100%);
+  z-index: 5;
+}
+
